@@ -1,92 +1,97 @@
-# InkTime - Smartwatch E-Paper (nRF52840)
+# InkTime v6 - Smartwatch cu Display E-Paper (nRF52840)
 
-InkTime este un proiect hardware open-source ce reprezintă o platformă de smartwatch de tip low-power. Dispozitivul utilizează un ecran E-Paper pentru afișaj permanent cu consum zero și este propulsat de modulul Bluetooth Low Energy **Holyiot nRF52840**.
+InkTime v6 este un proiect hardware de tip wearable, conceput pentru eficiență energetică extremă și afișaj permanent. Dispozitivul utilizează un ecran E-Paper de 1.54 inch și este bazat pe microcontrolerul nRF52840, oferind conectivitate Bluetooth Low Energy (BLE) într-un format compact.
 
 ---
 
 ## 1. Diagrama Bloc a Sistemului
 
-Diagrama de mai jos ilustrează interconectarea principalelor module hardware și fluxul de alimentare/date:
+Această diagramă ilustrează arhitectura hardware și fluxul de alimentare și date între module:
 
 ```mermaid
 graph TD
-    %% Componente Principale
-    MCU[Microcontroler<br>Holyiot nRF52840]
-    EPD[Display E-Paper<br>1.54 inch]
-    PWR[Power Management<br>LDO 3.3V + Charger]
-    BATT((Baterie LiPo<br>3.7V 250mAh))
-    BTN[Butoane Tactile<br>User Input]
-    I2C_SENSORS[Senzori I2C<br>Accelerometru / RTC]
-    PROG[Interfață Debug<br>SWD]
+    subgraph "Power Management"
+        BATT((Baterie LiPo 3.7V)) --> CHG[Charger TP4056]
+        CHG --> LDO[Regulator LDO 3.3V AP2112K]
+    end
 
-    %% Conexiuni
-    BATT -->|VBAT| PWR
-    PWR -->|3V3 VCC| MCU
-    PWR -->|3V3 VCC| EPD
-    PWR -->|3V3 VCC| I2C_SENSORS
-    
-    MCU <-->|SPI Bus + Control| EPD
-    MCU <-->|I2C Bus| I2C_SENSORS
-    BTN -->|GPIO / Interrupts| MCU
-    PROG <-->|SWDIO / SWCLK| MCU
-2. Descrierea Hardware și Funcționalitate
-Arhitectura dispozitivului este optimizată pentru eficiență energetică extremă:
+    subgraph "Processing Core"
+        MCU[Holyiot nRF52840<br/>ARM Cortex-M4F]
+    end
 
-Microcontroler (MCU): Modulul Holyiot nRF52840 integrează un procesor ARM Cortex-M4F la 64MHz și Bluetooth 5.0. A fost ales pentru consumul extrem de mic în modul Deep Sleep și amprenta redusă pe PCB.
+    subgraph "Peripherals"
+        EPD[Display E-Paper 1.54'']
+        SENS[Senzori I2C + Pull-ups]
+        BTNS[3x User Buttons]
+        DEBUG[Interfață Debug SWD]
+    end
 
-Display E-Paper: Comunică prin interfața SPI. Tehnologia E-Ink consumă energie doar în momentul actualizării (refresh). Odată imaginea desenată, consumul este de 0 mA.
+    %% Conexiuni Alimentare
+    LDO -->|3.3V VCC| MCU
+    LDO -->|3.3V VCC| EPD
+    LDO -->|3.3V VCC| SENS
 
-Interfață I2C: Include rezistențe de pull-up (4.7kΩ) pentru senzori externi (accelerometru, RTC, senzori de mediu).
+    %% Conexiuni Date
+    MCU <-->|SPI Bus| EPD
+    MCU <-->|I2C SDA/SCL| SENS
+    BTNS ---|GPIO / Interrupt| MCU
+    DEBUG <-->|SWDIO / SWCLK| MCU
+```
 
-Interacțiune: 3 butoane tactile cu debouncing, conectate pe pini GPIO cu Internal Pull-Up.
+---
 
-Power Management: Bateria LiPo (3.7V) este gestionată de un charger dedicat și stabilizată la 3.3V printr-un LDO cu curent de repaus foarte mic.
+## 2. Descrierea Hardware și Funcționalitate
 
-3. Maparea Pinilor (Pinout nRF52840)
-Alocarea pinilor a fost realizată strategic pentru o rutare scurtă și eficientă a semnalelor:
+Dispozitivul a fost proiectat respectând principiile de consum ultra-scăzut (Ultra-Low Power):
 
-Pin nRF52	Conectat la	Interfață	Justificarea alegerii
-P1.00	EPD_MOSI	SPI	Pin de mare viteză, poziționat optim pentru conectorul EPD.
-P0.22	EPD_SCK	SPI	Pin dedicat pentru clock SPI, minimizează cross-talk-ul.
-P0.20	EPD_CS	SPI (CS)	Control selectare periferic; pin digital standard.
-P0.17	EPD_DC	GPIO	Control Data/Command pentru driverul display-ului.
-P0.15	EPD_RES	GPIO	Reset hardware pentru display la inițializare.
-P0.13	EPD_BUSY	GPIO (In)	Monitorizează starea internă a display-ului (final refresh).
-P0.26	I2C_SDA	I2C	Pin standard I2C, poziționat lângă pinii de pull-up.
-P0.24	I2C_SCL	I2C	Clock I2C; grupat cu SDA pentru integritatea semnalului.
-P0.02	BTN1	GPIO (IRQ)	Pin AIN0, ideal pentru întreruperi de tip "Wake-up".
-P0.29	BTN2	GPIO	Input utilizator; poziționat lângă marginea plăcii.
-P0.31	BTN3	GPIO	Input utilizator; grupat cu BTN2 pentru simetrie.
-P0.11	SWCLK	Debug	Pin hardware dedicat; necesar pentru programare.
-P0.12	SWDIO	Debug	Pin hardware dedicat; necesar pentru programare.
-4. Bill of Materials (BOM)
-Componentă	Pachet	Producător / Cod JLC	Datasheet
-nRF52840 Holyiot	SMD Module	Holyiot-18010	Link PDF
-AP2112K-3.3	SOT-23-5	JLCPCB C51118	Link PDF
-TP4056	SOP-8	JLCPCB C16581	Link PDF
-Butoane Tactile	3x4mm SMD	JLCPCB C318884	Link PDF
-Conector FPC 24P	0.5mm Pitch	JLCPCB C46954	Link PDF
-5. Estimare Consum Energie (Power Budget)
-Calcul teoretic pentru demonstrarea autonomiei:
+* **Microcontroler (MCU):** Modulul **Holyiot nRF52840**. Ales pentru consumul minim în modul Deep Sleep (~3µA) și pentru suportul nativ de conectivitate BLE și USB. Acesta gestionează întreaga logică a ceasului.
+* **Display E-Paper:** Un ecran de 1.54 inch conectat prin magistrala **SPI**. Tehnologia bistabilă permite afișarea permanentă a informațiilor fără consum de energie (0mA în stare statică).
+* **Interfața I2C:** Configurație cu rezistențe de pull-up de 4.7kΩ pentru a asigura stabilitatea semnalului către senzori (accelerometru/RTC).
+* **Management Alimentare:** Încărcarea bateriei LiPo se face prin portul USB utilizând controller-ul **TP4056**. Tensiunea este stabilizată la 3.3V prin regulatorul LDO **AP2112K-3.3**.
 
-Capacitate Baterie: 250 mAh
+---
 
-Consum Deep Sleep: ~5 µA
+## 3. Maparea Pinilor (Pinout nRF52840)
 
-Consum Refresh E-Paper: ~8 mA (timp de 2 secunde)
+Alocarea pinilor a fost realizată strategic pentru a facilita rutarea semnalelor pe PCB:
 
-Scenariu: 1 refresh pe minut.
+| Pin nRF52 | Conectat la | Interfață | Rol / Justificare |
+| :--- | :--- | :--- | :--- |
+| **P1.00** | `EPD_MOSI` | SPI | Date transmise către display. |
+| **P0.22** | `EPD_SCK` | SPI | Semnalul de tact (Clock) pentru SPI. |
+| **P0.20** | `EPD_CS` | SPI (CS) | Chip Select - Activează display-ul. |
+| **P0.17** | `EPD_DC` | GPIO | Data/Command - Comută între date și comenzi. |
+| **P0.15** | `EPD_RES` | GPIO | Reset Hardware - Inițializează driverul EPD. |
+| **P0.13** | `EPD_BUSY` | GPIO (In) | Busy Signal - Detectează finalul refresh-ului. |
+| **P0.26** | `I2C_SDA` | I2C | Date pentru magistrala I2C. |
+| **P0.24** | `I2C_SCL` | I2C | Clock pentru magistrala I2C. |
+| **P0.02** | `BTN1` | GPIO (IRQ) | Buton 1 - Configurat pentru Wake-up. |
+| **P0.29** | `BTN2` | GPIO | Buton 2 - Input utilizator (Sus/Select). |
+| **P0.31** | `BTN3` | GPIO | Buton 3 - Input utilizator (Jos/Back). |
+| **P0.11** | `SWCLK` | Debug | Clock pentru programare (Hardware dedicated). |
+| **P0.12** | `SWDIO` | Debug | Date pentru programare (Hardware dedicated). |
 
-Consum mediu: 0.27 mA
+---
 
-Autonomie: ~925 ore (~38 de zile) cu o singură încărcare.
+## 4. Bill of Materials (BOM)
 
-6. Jurnal de Design și Asamblare (Mecanică)
-În folderul /Mechanical se regăsesc fișierele necesare pentru integrarea fizică:
+Componentele utilizate pe placă cu link-uri către JLCPCB și documentație:
 
-Fișierul .f3d: Istoricul complet de proiectare în Fusion 360.
+| Componentă | Pachet | Rol | Link JLCPCB | Datasheet |
+| :--- | :--- | :--- | :--- | :--- |
+| **nRF52840 Holyiot** | SMD Module | MCU + BLE | [C517331](https://jlcpcb.com/partdetail/C517331) | [Link PDF](https://www.mouser.com/datasheet/3/926/1/nrf52840_soc_v3.0.pdf) |
+| **AP2112K-3.3** | SOT-23-5 | LDO 3.3V | [C51118](https://jlcpcb.com/partdetail/C51118) | [Link PDF](https://www.diodes.com/assets/Datasheets/AP2112.pdf) |
+| **TP4056** | SOP-8 | Charger | [C16581](https://jlcpcb.com/partdetail/C16581) | [Link PDF](https://dlnmh9ip6v2uc.cloudfront.net/datasheets/Prototyping/TP4056.pdf) |
+| **Butoane Tactile** | 3x4mm SMD | Input | [C318884](https://jlcpcb.com/partdetail/C318884) | [Link PDF](https://datasheet.lcsc.com/lcsc/1811061726_XKB-Connection-TS-1187A-B-A-B_C318884.pdf) |
+| **Conector FPC 24P** | 0.5mm Pitch | EPD Port | [C46954](https://jlcpcb.com/partdetail/C46954) | [Link PDF](https://datasheet.lcsc.com/lcsc/1810010313_XKB-Enterprise-F31L-1A7H1-24050-T241_C46954.pdf) |
 
-Fișierul .step: Vedere explodată (Exploded View) a ansamblului:
-Capac Spate -> Baterie -> PCB -> Display -> Carcasă Frontală.
+---
 
-Verificări: Clearance-ul pentru mufa USB și butoane a fost validat prin asamblare virtuală 3D.
+## 5. Analiza Consumului Energetic
+
+Sistemul este proiectat să funcționeze cu o baterie LiPo de **250 mAh**.
+
+* **Consum Deep Sleep:** ~5 µA (MCU + LDO quiescent current).
+* **Consum Refresh E-Paper:** ~8 mA (timp de 2 secunde).
+* **Consum Mediu:** ~0.27 mA (calculat pentru un refresh pe minut).
+* **Autonomie Estimată:** Aproximativ **38 de zile** de funcționare continuă.
